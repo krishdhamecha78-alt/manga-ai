@@ -110,7 +110,7 @@ async def process_series(series_url: str):
         page = await browser.new_page()
 
         # ✅ Apply stealth to evade Cloudflare / bot detection
-        await stealth(page)
+        stealth(page)   # <-- FIXED (no await)
 
         chapters = await get_chapter_links(page, series_url)
         print(f"📖 Found {len(chapters)} chapters total")
@@ -150,4 +150,6 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
+
 
