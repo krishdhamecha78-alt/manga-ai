@@ -3,7 +3,7 @@ import subprocess
 import requests
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async   # ✅ Stealth import
+from playwright_stealth.stealth import stealth_async   # ✅ correct
 
 # ✅ Ensure Chromium is installed at runtime (only needed once)
 subprocess.run(["playwright", "install", "chromium"], check=True)
@@ -148,4 +148,5 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
 
