@@ -3,6 +3,7 @@ import subprocess
 import requests
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async   # ✅ Stealth import
 
 # ✅ Ensure Chromium is installed at runtime (only needed once)
 subprocess.run(["playwright", "install", "chromium"], check=True)
@@ -10,6 +11,9 @@ subprocess.run(["playwright", "install", "chromium"], check=True)
 BASE_DOWNLOADS = "downloads"
 UPLOAD_API = "https://your-site.com/api/upload"  # TODO: CHANGE THIS
 HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+# 🔑 Optional proxy (set env var PROXY_SERVER like "http://user:pass@host:port")
+PROXY_SERVER = os.getenv("PROXY_SERVER")
 
 app = FastAPI()
 
@@ -20,11 +24,7 @@ async def get_chapter_links(page, series_url: str):
     """Collect chapter links from a series page (with debug logs)."""
     await page.goto(series_url, wait_until="domcontentloaded", timeout=60000)
 
-    # Grab all anchor tags
-    links = await page.eval_on_selector_all(
-        "a",
-        "els => els.map(el => el.href)"
-    )
+    links = await page.eval_on_selector_all("a", "els => els.map(el => el.href)")
     print(f"🔗 Found {len(links)} total links on page")
 
     if links:
@@ -32,7 +32,6 @@ async def get_chapter_links(page, series_url: str):
         for l in links[:10]:
             print("   ", l)
 
-    # Keep only those with 'chapter' in URL
     chapter_links = [l for l in links if "chapter" in l.lower()]
     print(f"✅ Filtered {len(chapter_links)} chapter links")
     return sorted(set(chapter_links))
@@ -41,10 +40,7 @@ async def get_chapter_links(page, series_url: str):
 async def get_chapter_images(page, chapter_url: str):
     """Collect all image URLs from a chapter page (with debug logs)."""
     await page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
-    img_urls = await page.eval_on_selector_all(
-        "img",
-        "els => els.map(el => el.src)"
-    )
+    img_urls = await page.eval_on_selector_all("img", "els => els.map(el => el.src)")
     print(f"🖼️  Found {len(img_urls)} images in {chapter_url}")
     return [url for url in img_urls if url.endswith((".webp", ".jpg", ".png"))]
 
@@ -91,17 +87,27 @@ async def process_series(series_url: str):
     """Scrape, download, and upload the entire manga series."""
     results = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--no-zygote"
-            ]
-        )
+        browser_args = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-zygote"
+        ]
+
+        # ✅ Launch with optional proxy
+        launch_opts = {
+            "headless": True,
+            "args": browser_args
+        }
+        if PROXY_SERVER:
+            launch_opts["proxy"] = {"server": PROXY_SERVER}
+
+        browser = await p.chromium.launch(**launch_opts)
         page = await browser.new_page()
+
+        # ✅ Apply stealth to evade Cloudflare
+        await stealth_async(page)
 
         chapters = await get_chapter_links(page, series_url)
         print(f"📖 Found {len(chapters)} chapters total")
@@ -142,3 +148,4 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
