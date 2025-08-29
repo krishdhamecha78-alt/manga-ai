@@ -17,22 +17,35 @@ app = FastAPI()
 # ---------------------- Scraper Helpers ----------------------
 
 async def get_chapter_links(page, series_url: str):
-    """Collect chapter links from a series page."""
+    """Collect chapter links from a series page (with debug logs)."""
     await page.goto(series_url, wait_until="domcontentloaded", timeout=60000)
+
+    # Grab all anchor tags
     links = await page.eval_on_selector_all(
-        "a[href*='chapter']",
+        "a",
         "els => els.map(el => el.href)"
     )
-    return sorted(set(links))
+    print(f"🔗 Found {len(links)} total links on page")
+
+    if links:
+        print("🔎 First 10 links:")
+        for l in links[:10]:
+            print("   ", l)
+
+    # Keep only those with 'chapter' in URL
+    chapter_links = [l for l in links if "chapter" in l.lower()]
+    print(f"✅ Filtered {len(chapter_links)} chapter links")
+    return sorted(set(chapter_links))
 
 
 async def get_chapter_images(page, chapter_url: str):
-    """Collect all image URLs from a chapter page."""
+    """Collect all image URLs from a chapter page (with debug logs)."""
     await page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
     img_urls = await page.eval_on_selector_all(
         "img",
         "els => els.map(el => el.src)"
     )
+    print(f"🖼️  Found {len(img_urls)} images in {chapter_url}")
     return [url for url in img_urls if url.endswith((".webp", ".jpg", ".png"))]
 
 
@@ -49,13 +62,14 @@ def download_images(img_urls, chapter_folder):
             with open(filename, "wb") as f:
                 f.write(r.content)
             files.append(filename)
+            print(f"⬇️  Downloaded {filename}")
         except Exception as e:
             print(f"❌ Failed {url}: {e}")
     return files
 
 
 def upload_chapter(chapter_title: str, files: list[str]):
-    """Upload chapter images to external API."""
+    """Upload chapter images to external API (with logs)."""
     results = []
     for file in files:
         try:
@@ -64,8 +78,10 @@ def upload_chapter(chapter_title: str, files: list[str]):
                 data = {"chapter": chapter_title}
                 r = requests.post(UPLOAD_API, files=files_data, data=data)
                 results.append({file: r.status_code})
+                print(f"☁️  Uploaded {file} → {r.status_code}")
         except Exception as e:
             results.append({file: f"error: {e}"})
+            print(f"⚠️ Upload failed for {file}: {e}")
     return results
 
 
@@ -88,7 +104,7 @@ async def process_series(series_url: str):
         page = await browser.new_page()
 
         chapters = await get_chapter_links(page, series_url)
-        print(f"📖 Found {len(chapters)} chapters")
+        print(f"📖 Found {len(chapters)} chapters total")
 
         for idx, chapter_url in enumerate(chapters, 1):
             chapter_title = f"Chapter_{idx}"
@@ -110,6 +126,12 @@ async def process_series(series_url: str):
 
 
 # ---------------------- API Endpoints ----------------------
+
+@app.get("/")
+async def root():
+    """Root health endpoint for Render."""
+    return {"message": "API is running 🚀"}
+
 
 @app.post("/process")
 async def process_api(series_url: str = Body(..., embed=True)):
