@@ -1,14 +1,20 @@
-import os
+mport os
 import subprocess
 import requests
+from typing import List
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth   # ✅ correct import
 
-# ✅ Ensure Chromium is installed at runtime (only needed once)
-subprocess.run(["playwright", "install", "chromium"], check=True)
+# ✅ Ensure Chromium is installed at runtime (safe wrapper for Render)
+try:
+    subprocess.run(["playwright", "install", "chromium"], check=True)
+except Exception as e:
+    print("⚠️ Playwright install skipped:", e)
 
 BASE_DOWNLOADS = "downloads"
+os.makedirs(BASE_DOWNLOADS, exist_ok=True)  # ✅ ensure folder exists
+
 UPLOAD_API = "https://your-site.com/api/upload"  # TODO: CHANGE THIS
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
@@ -64,7 +70,7 @@ def download_images(img_urls, chapter_folder):
     return files
 
 
-def upload_chapter(chapter_title: str, files: list[str]):
+def upload_chapter(chapter_title: str, files: List[str]):
     """Upload chapter images to external API (with logs)."""
     results = []
     for file in files:
@@ -72,7 +78,7 @@ def upload_chapter(chapter_title: str, files: list[str]):
             with open(file, "rb") as f:
                 files_data = {"file": f}
                 data = {"chapter": chapter_title}
-                r = requests.post(UPLOAD_API, files=files_data, data=data)
+                r = requests.post(UPLOAD_API, files=files_data, data=data, timeout=30)
                 results.append({file: r.status_code})
                 print(f"☁️  Uploaded {file} → {r.status_code}")
         except Exception as e:
@@ -96,10 +102,7 @@ async def process_series(series_url: str):
         ]
 
         # ✅ Launch with optional proxy
-        launch_opts = {
-            "headless": True,
-            "args": browser_args
-        }
+        launch_opts = {"headless": True, "args": browser_args}
         if PROXY_SERVER:
             launch_opts["proxy"] = {"server": PROXY_SERVER}
 
@@ -135,7 +138,6 @@ async def process_series(series_url: str):
 
 @app.get("/")
 async def root():
-    """Root health endpoint for Render."""
     return {"message": "API is running 🚀"}
 
 
