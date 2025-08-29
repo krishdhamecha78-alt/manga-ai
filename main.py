@@ -1,11 +1,10 @@
 import os
-import asyncio
+import subprocess
 import requests
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-import subprocess
 
-# Ensure Chromium is installed
+# Ensure Chromium is installed (after dependencies)
 subprocess.run(["playwright", "install", "chromium"], check=True)
 
 BASE_DOWNLOADS = "downloads"
@@ -39,7 +38,6 @@ def download_images(img_urls, chapter_folder):
     for i, url in enumerate(img_urls, 1):
         ext = os.path.splitext(url)[-1]
         filename = os.path.join(chapter_folder, f"{i:03d}{ext}")
-        print(f"Downloading: {url}")
         try:
             r = requests.get(url, headers=HEADERS, timeout=20)
             r.raise_for_status()
@@ -52,7 +50,6 @@ def download_images(img_urls, chapter_folder):
 
 
 def upload_chapter(chapter_title: str, files: list[str]):
-    print(f"Uploading {chapter_title}...")
     results = []
     for file in files:
         try:
@@ -68,7 +65,6 @@ def upload_chapter(chapter_title: str, files: list[str]):
 
 async def process_series(series_url: str):
     results = []
-
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -92,7 +88,6 @@ async def process_series(series_url: str):
             })
 
         await browser.close()
-
     return results
 
 
@@ -100,4 +95,12 @@ async def process_series(series_url: str):
 async def process_api(series_url: str = Body(..., embed=True)):
     results = await process_series(series_url)
     return {"status": "done", "chapters": results}
+
+
+# Optional status endpoint to check Playwright
+@app.get("/status")
+async def status():
+    return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
+
 
