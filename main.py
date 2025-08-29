@@ -1,4 +1,4 @@
-mport os
+import os
 import subprocess
 import requests
 from typing import List
@@ -150,3 +150,4 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
