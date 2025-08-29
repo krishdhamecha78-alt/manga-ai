@@ -4,18 +4,21 @@ import requests
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
 
-# Ensure Chromium is installed (after dependencies)
+# ✅ Ensure Chromium is installed at runtime (only needed once)
 subprocess.run(["playwright", "install", "chromium"], check=True)
 
 BASE_DOWNLOADS = "downloads"
-UPLOAD_API = "https://your-site.com/api/upload"  # CHANGE THIS
+UPLOAD_API = "https://your-site.com/api/upload"  # TODO: CHANGE THIS
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 app = FastAPI()
 
 
+# ---------------------- Scraper Helpers ----------------------
+
 async def get_chapter_links(page, series_url: str):
-    await page.goto(series_url, wait_until="networkidle")
+    """Collect chapter links from a series page."""
+    await page.goto(series_url, wait_until="domcontentloaded", timeout=60000)
     links = await page.eval_on_selector_all(
         "a[href*='chapter']",
         "els => els.map(el => el.href)"
@@ -24,7 +27,8 @@ async def get_chapter_links(page, series_url: str):
 
 
 async def get_chapter_images(page, chapter_url: str):
-    await page.goto(chapter_url, wait_until="networkidle")
+    """Collect all image URLs from a chapter page."""
+    await page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
     img_urls = await page.eval_on_selector_all(
         "img",
         "els => els.map(el => el.src)"
@@ -33,10 +37,11 @@ async def get_chapter_images(page, chapter_url: str):
 
 
 def download_images(img_urls, chapter_folder):
+    """Download chapter images to local folder."""
     os.makedirs(chapter_folder, exist_ok=True)
     files = []
     for i, url in enumerate(img_urls, 1):
-        ext = os.path.splitext(url)[-1]
+        ext = os.path.splitext(url)[-1] or ".jpg"
         filename = os.path.join(chapter_folder, f"{i:03d}{ext}")
         try:
             r = requests.get(url, headers=HEADERS, timeout=20)
@@ -50,6 +55,7 @@ def download_images(img_urls, chapter_folder):
 
 
 def upload_chapter(chapter_title: str, files: list[str]):
+    """Upload chapter images to external API."""
     results = []
     for file in files:
         try:
@@ -63,10 +69,22 @@ def upload_chapter(chapter_title: str, files: list[str]):
     return results
 
 
+# ---------------------- Main Series Processor ----------------------
+
 async def process_series(series_url: str):
+    """Scrape, download, and upload the entire manga series."""
     results = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--no-zygote"
+            ]
+        )
         page = await browser.new_page()
 
         chapters = await get_chapter_links(page, series_url)
@@ -91,16 +109,14 @@ async def process_series(series_url: str):
     return results
 
 
+# ---------------------- API Endpoints ----------------------
+
 @app.post("/process")
 async def process_api(series_url: str = Body(..., embed=True)):
     results = await process_series(series_url)
     return {"status": "done", "chapters": results}
 
 
-# Optional status endpoint to check Playwright
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
-
-
-
