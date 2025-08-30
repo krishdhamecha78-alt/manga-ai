@@ -4,7 +4,7 @@ import requests
 from typing import List
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth   # ✅ correct import
+from playwright_stealth.stealth import stealth   # ✅ correct import
 
 # ✅ Ensure Chromium is installed at runtime (important for Render)
 try:
@@ -144,6 +144,7 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
 
 
 
