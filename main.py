@@ -4,7 +4,7 @@ import requests
 from typing import List
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth   # ✅ correct import
+import playwright_stealth   # ✅ use module, not callable
 
 # ✅ Ensure Chromium is installed at runtime (safe wrapper for Render)
 try:
@@ -109,8 +109,8 @@ async def process_series(series_url: str):
         browser = await p.chromium.launch(**launch_opts)
         page = await browser.new_page()
 
-        # ✅ Apply stealth (fix: no await, just call)
-        stealth(page)
+        # ✅ Apply stealth correctly
+        await playwright_stealth.stealth_async(page)
 
         chapters = await get_chapter_links(page, series_url)
         print(f"📖 Found {len(chapters)} chapters total")
