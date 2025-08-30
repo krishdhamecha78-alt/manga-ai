@@ -1,5 +1,6 @@
-fastapi==0.115.0
-uvicorn==0.30.1
-playwright==1.47.0
-requests==2.32.3
-playwright-stealth==1.0.6
+fastapi
+uvicorn[standard]
+playwright
+playwright-stealth
+requests
+beautifulsoup4
