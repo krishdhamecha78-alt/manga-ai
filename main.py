@@ -4,9 +4,9 @@ import requests
 from typing import List
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-import playwright_stealth   # ✅ use module, not callable
+from playwright_stealth import stealth   # ✅ correct import
 
-# ✅ Ensure Chromium is installed at runtime (safe wrapper for Render)
+# ✅ Ensure Chromium is installed at runtime (for Render)
 try:
     subprocess.run(["playwright", "install", "chromium"], check=True)
 except Exception as e:
@@ -15,7 +15,7 @@ except Exception as e:
 BASE_DOWNLOADS = "downloads"
 os.makedirs(BASE_DOWNLOADS, exist_ok=True)  # ✅ ensure folder exists
 
-UPLOAD_API = "https://your-site.com/api/upload"  # TODO: CHANGE THIS
+UPLOAD_API = "https://your-site.com/api/upload"  # 🔧 change this to your real upload API
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 # 🔑 Optional proxy (set env var PROXY_SERVER like "http://user:pass@host:port")
@@ -27,16 +27,11 @@ app = FastAPI()
 # ---------------------- Scraper Helpers ----------------------
 
 async def get_chapter_links(page, series_url: str):
-    """Collect chapter links from a series page (with debug logs)."""
+    """Collect chapter links from a series page."""
     await page.goto(series_url, wait_until="domcontentloaded", timeout=60000)
 
     links = await page.eval_on_selector_all("a", "els => els.map(el => el.href)")
     print(f"🔗 Found {len(links)} total links on page")
-
-    if links:
-        print("🔎 First 10 links:")
-        for l in links[:10]:
-            print("   ", l)
 
     chapter_links = [l for l in links if "chapter" in l.lower()]
     print(f"✅ Filtered {len(chapter_links)} chapter links")
@@ -44,7 +39,7 @@ async def get_chapter_links(page, series_url: str):
 
 
 async def get_chapter_images(page, chapter_url: str):
-    """Collect all image URLs from a chapter page (with debug logs)."""
+    """Collect all image URLs from a chapter page."""
     await page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
     img_urls = await page.eval_on_selector_all("img", "els => els.map(el => el.src)")
     print(f"🖼️  Found {len(img_urls)} images in {chapter_url}")
@@ -71,7 +66,7 @@ def download_images(img_urls, chapter_folder):
 
 
 def upload_chapter(chapter_title: str, files: List[str]):
-    """Upload chapter images to external API (with logs)."""
+    """Upload chapter images to external API."""
     results = []
     for file in files:
         try:
@@ -101,7 +96,6 @@ async def process_series(series_url: str):
             "--no-zygote"
         ]
 
-        # ✅ Launch with optional proxy
         launch_opts = {"headless": True, "args": browser_args}
         if PROXY_SERVER:
             launch_opts["proxy"] = {"server": PROXY_SERVER}
@@ -109,8 +103,8 @@ async def process_series(series_url: str):
         browser = await p.chromium.launch(**launch_opts)
         page = await browser.new_page()
 
-        # ✅ Apply stealth correctly
-        await playwright_stealth.stealth_async(page)
+        # ✅ Apply stealth correctly (not async)
+        stealth(page)
 
         chapters = await get_chapter_links(page, series_url)
         print(f"📖 Found {len(chapters)} chapters total")
@@ -150,5 +144,7 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
+
+
 
 
