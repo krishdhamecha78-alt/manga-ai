@@ -4,31 +4,35 @@ import requests
 from typing import List
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async   # ✅ correct import
+from playwright_stealth import stealth   # ✅ correct import
 
-# ✅ Ensure Chromium is installed (important for Render)
+# ✅ Ensure Chromium is installed at runtime (important for Render)
 try:
     subprocess.run(["playwright", "install", "chromium"], check=True)
 except Exception as e:
     print("⚠️ Playwright install skipped:", e)
 
 BASE_DOWNLOADS = "downloads"
-os.makedirs(BASE_DOWNLOADS, exist_ok=True)
+os.makedirs(BASE_DOWNLOADS, exist_ok=True)  # ✅ ensure folder exists
 
-UPLOAD_API = "https://your-site.com/api/upload"  # 🔧 replace with your upload API
+UPLOAD_API = "https://your-site.com/api/upload"  # 🔧 change this to your upload API
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+# 🔑 Optional proxy (set env var PROXY_SERVER like "http://user:pass@host:port")
 PROXY_SERVER = os.getenv("PROXY_SERVER")
 
 app = FastAPI()
+
 
 # ---------------------- Scraper Helpers ----------------------
 
 async def get_chapter_links(page, series_url: str):
     """Collect chapter links from a series page."""
     await page.goto(series_url, wait_until="domcontentloaded", timeout=60000)
+
     links = await page.eval_on_selector_all("a", "els => els.map(el => el.href)")
     print(f"🔗 Found {len(links)} total links on page")
+
     chapter_links = [l for l in links if "chapter" in l.lower()]
     print(f"✅ Filtered {len(chapter_links)} chapter links")
     return sorted(set(chapter_links))
@@ -99,8 +103,8 @@ async def process_series(series_url: str):
         browser = await p.chromium.launch(**launch_opts)
         page = await browser.new_page()
 
-        # ✅ Use stealth correctly
-        await stealth_async(page)
+        # ✅ Apply stealth correctly
+        await stealth(page)
 
         chapters = await get_chapter_links(page, series_url)
         print(f"📖 Found {len(chapters)} chapters total")
@@ -140,7 +144,6 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
-
 
 
 
