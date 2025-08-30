@@ -4,7 +4,7 @@ import requests
 from typing import List
 from fastapi import FastAPI, Body
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth   # ✅ correct import
+from playwright_stealth import stealth_async   # ✅ correct import
 
 # ✅ Ensure Chromium is installed at runtime (safe wrapper for Render)
 try:
@@ -15,7 +15,7 @@ except Exception as e:
 BASE_DOWNLOADS = "downloads"
 os.makedirs(BASE_DOWNLOADS, exist_ok=True)  # ✅ ensure folder exists
 
-UPLOAD_API = "https://your-site.com/api/upload"  # TODO: CHANGE THIS
+UPLOAD_API = os.getenv("UPLOAD_API", "https://your-site.com/api/upload")  # ✅ env configurable
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 # 🔑 Optional proxy (set env var PROXY_SERVER like "http://user:pass@host:port")
@@ -48,7 +48,7 @@ async def get_chapter_images(page, chapter_url: str):
     await page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
     img_urls = await page.eval_on_selector_all("img", "els => els.map(el => el.src)")
     print(f"🖼️  Found {len(img_urls)} images in {chapter_url}")
-    return [url for url in img_urls if url.endswith((".webp", ".jpg", ".png"))]
+    return [url for url in img_urls if url.endswith((".webp", ".jpg", ".png", ".jpeg"))]
 
 
 def download_images(img_urls, chapter_folder):
@@ -109,8 +109,8 @@ async def process_series(series_url: str):
         browser = await p.chromium.launch(**launch_opts)
         page = await browser.new_page()
 
-        # ✅ Apply stealth to evade Cloudflare / bot detection
-        stealth(page)   # <-- FIXED (no await)
+        # ✅ FIX: stealth must be awaited
+        await stealth_async(page)
 
         chapters = await get_chapter_links(page, series_url)
         print(f"📖 Found {len(chapters)} chapters total")
@@ -150,6 +150,4 @@ async def process_api(series_url: str = Body(..., embed=True)):
 @app.get("/status")
 async def status():
     return {"status": "running", "downloads_folder": BASE_DOWNLOADS}
-
-
 
